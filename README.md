@@ -1,405 +1,653 @@
 # FarmConnect
 
-FarmConnect is a marketplace where farmers sell agricultural produce directly to buyers. Each trade can happen in one of three ways:
+### Connecting farmers and buyers through direct agricultural trading
 
-- **Fixed-price listings.** A farmer publishes produce with an asking price per unit.
-- **Private negotiation.** A buyer and a farmer chat in real time and exchange structured offers and counteroffers.
-- **Competitive bidding.** A farmer runs a time-limited auction for part or all of a listing.
+FarmConnect is an agricultural marketplace where farmers publish produce and buyers discover listings, communicate with growers, negotiate prices, and participate in auctions.
 
-When a trade is agreed, FarmConnect records an **agreement** and shows each party the other's contact details. Payment, transport and delivery are arranged directly between them. FarmConnect does not handle money, escrow or logistics.
+The application brings produce listings, conversations, offers, bids, stock records, and trade agreements into one platform.
 
-> **Status:** The app has been built and tested against the Firebase Emulator Suite only. It has **not been deployed**, and it is not connected to a real Firebase project yet. It is designed to run **for free** on Firebase Spark plus Vercel Hobby, with no card needed. See [DEPLOY-FREE.md](DEPLOY-FREE.md) for the step-by-step guide.
+**Course:** Full Stack Development–1  
+**Team size:** 5 members  
+**Frontend:** React, Next.js, TypeScript, Tailwind CSS, and custom CSS
 
----
-
-## Contents
-
-1. [Project overview](#1-project-overview)
-2. [Main features](#2-main-features)
-3. [Architecture](#3-architecture)
-4. [Technology stack](#4-technology-stack)
-5. [Folder structure](#5-folder-structure)
-6. [Prerequisites](#6-prerequisites)
-7. [Installation](#7-installation)
-8. [Environment configuration](#8-environment-configuration)
-9. [Firebase setup](#9-firebase-setup)
-10. [Authentication configuration](#10-authentication-configuration)
-11. [Firestore schema](#11-firestore-schema)
-12. [Security rules](#12-security-rules)
-13. [Required indexes](#13-required-indexes)
-14. [Server code and the two backends](#14-server-code-and-the-two-backends)
-15. [Local development](#15-local-development)
-16. [Emulator usage](#16-emulator-usage)
-17. [Testing](#17-testing)
-18. [Deployment](#18-deployment)
-19. [Known limitations](#19-known-limitations)
-20. [Future enhancements](#20-future-enhancements)
-21. [Business rules](#21-business-rules)
+> **Current status:** The project is configured for local development using the Firebase Emulator Suite. It has not been deployed. The merged repository includes the restored application source files, but a successful production build and complete runtime validation of that version have not yet been recorded.
 
 ---
 
-## 1. Project overview
+## Table of Contents
 
-There are three roles:
+1. [Project Overview](#project-overview)
+2. [Problem Statement](#problem-statement)
+3. [Proposed Solution](#proposed-solution)
+4. [Project Objectives](#project-objectives)
+5. [Team Members](#team-members)
+6. [Features and User Roles](#features-and-user-roles)
+7. [Technology Stack](#technology-stack)
+8. [Architecture](#architecture)
+9. [Folder Structure](#folder-structure)
+10. [Local Setup](#local-setup)
+11. [Demo Accounts](#demo-accounts)
+12. [Demonstration Flow](#demonstration-flow)
+13. [Validation and Testing](#validation-and-testing)
+14. [Environment Configuration](#environment-configuration)
+15. [Security and Data Handling](#security-and-data-handling)
+16. [Team Git Workflow](#team-git-workflow)
+17. [Known Limitations](#known-limitations)
+18. [Future Improvements](#future-improvements)
+19. [Photography and Credits](#photography-and-credits)
 
-| Role | Can do |
-|---|---|
-| **Farmer** | Create and manage listings and stock, chat with buyers, answer and counter offers, run auctions, track agreements, and request verification. |
-| **Buyer** | Search and filter listings, save listings and farmers, chat, make offers, bid in auctions, and track agreements. |
-| **Administrator** | Suspend or restore accounts, review verification requests, moderate listings, handle reports, inspect and cancel auctions, resolve disputed agreements, manage categories, and read the audit log and system errors. |
+---
 
-Roles are stored as Firebase Auth **custom claims**, and they are enforced by Security Rules and by the server code. Hiding a button in the UI never counts as security.
+## Project Overview
 
-## 2. Main features
+FarmConnect supports direct communication between farmers and agricultural produce buyers.
 
-- **Landing page** with live sections: categories, the latest listings, and live or upcoming auctions. Every number on the page comes from the database. Nothing is invented.
-- **Authentication:** register with a role, onboarding (name, phone, location), login, logout, forgot and reset password, email verification, a notice when the session expires, and suspended-account handling.
-- **Listings:** create, edit, draft, publish, pause, mark sold out and remove. Up to 6 images can be uploaded, to Vercel Blob on the free plan or to Cloud Storage on Blaze. Units are kg, quintal and tonne, with a normalised price per quintal so listings can be compared.
-- **Stock management:** every listing tracks four buckets, `available`, `reserved` (held for auctions), `committed` (owed to agreements) and `sold`. Every movement is recorded in `stockAllocations` and in the audit log.
-- **Search and filters:** keyword (name prefix), category, state, district, price range, minimum quantity, quality grade, harvest date and verified farmers, sorted by newest or price.
-- **Farmer profiles:** public profile, verification badge and the farmer's listings. Buyers can save farmers.
-- **Real-time chat:** one conversation per buyer, farmer and listing. Messages are sent through the server and arrive in real time. Includes unread counts, read markers, retry when a send fails (without duplicates), block and archive, and reporting.
-- **Structured offers:** quantity, price per unit, terms and an expiry. A counteroffer creates a new linked offer. States are pending, countered, accepted, rejected, withdrawn, expired and cancelled. Acceptance is atomic: it commits stock and records the agreement in the same transaction.
-- **Auctions:** draft, scheduled, live, ended and cancelled. The server clock decides timing. Each auction has a starting price, a minimum increment and an optional reserve. Bids can be public with anonymous labels ("Bidder 1") or sealed. The bid history is anonymised. Results are finalised automatically.
-- **Agreements:** created from an accepted offer or an auction win. Contact details are revealed only to the two parties, and each reveal is audited. Progress is tracked as contact initiated, in progress, completed (both parties must confirm), not completed, or disputed.
-- **Notifications:** in-app and persistent, with deduplication, a bell counter, and mark read or mark all read.
-- **Dashboards:** farmer, buyer and administrator overviews built from real counts.
-- **Admin tools:** users, verification, listings, reports, auctions and bids (with buyer identities), agreements, categories, audit log, and system errors.
+Farmers can manage listings and stock, respond to offers, and create auctions. Buyers can browse produce, save listings, negotiate with farmers, place bids, and track agreements.
 
-## 3. Architecture
+The frontend includes:
 
+- A photographic landing page with an automatic slideshow.
+- Crop category navigation.
+- Search and filtering interfaces.
+- Product and farmer detail pages.
+- Separate farmer and buyer dashboards.
+- Listing and auction forms.
+- Messaging and structured offer interfaces.
+- Loading, error, and empty states.
+- Responsive layouts and accessible motion preferences.
+
+The project uses **Next.js, which is built on React**. It includes Firebase and server-side business logic for authentication, persistence, and trusted operations. It is therefore a full-stack application rather than a frontend-only prototype.
+
+### Scope Boundary
+
+FarmConnect records agreed trade terms, but the farmer and buyer arrange inspection, payment, transport, and delivery directly.
+
+The application does not process payments, hold money in escrow, or provide logistics services.
+
+---
+
+## Problem Statement
+
+Farmers and buyers often coordinate produce trading through separate calls, messages, and informal records.
+
+This can make it difficult to:
+
+- Present available produce consistently.
+- Compare quantity, quality, location, and asking price.
+- Track offers and counteroffers.
+- Distinguish available stock from reserved or committed stock.
+- Maintain a shared record of agreed terms.
+
+FarmConnect addresses this coordination problem by providing a common interface for produce discovery, negotiation, bidding, and agreement tracking.
+
+---
+
+## Proposed Solution
+
+FarmConnect provides the following workflow:
+
+1. A farmer publishes a produce listing.
+2. A buyer searches the marketplace and examines the listing.
+3. The buyer contacts the farmer and sends a structured offer.
+4. The farmer accepts, rejects, or counters the offer.
+5. An accepted offer creates an agreement and updates the stock allocation.
+
+As an alternative trading method:
+
+1. The farmer reserves stock for an auction.
+2. Buyers submit bids during the auction period.
+3. Server logic validates bids and determines the result.
+4. A qualifying winning bid creates an agreement.
+
+Trading records are persisted in Firestore so they can be retrieved after a browser refresh.
+
+---
+
+## Project Objectives
+
+- Build an understandable agricultural marketplace interface.
+- Apply React component structure and reusable UI patterns.
+- Provide responsive pages for different screen sizes.
+- Display data from persistent records.
+- Handle loading, empty, error, and invalid-input states.
+- Validate trusted operations on the server.
+- Demonstrate one complete trading flow.
+- Maintain clear team contributions and teammate reviews in Git.
+
+---
+
+## Team Members
+
+| Name | Roll Number | GitHub Account | Contribution Area |
+|---|---|---|---|
+| Thoka Sanjay Teja | 24BDS083 | [SanjayTeja01](https://github.com/SanjayTeja01) | Project foundation, landing page, styling, photography integration, and repository completion |
+| Mudavath Santhosh | 24BDS044 | [mudavathsanthosh912-spec](https://github.com/mudavathsanthosh912-spec) | Buyer dashboard, buyer auctions, bids, offers, and related components |
+| G Dharmik | 24BDS021 | [Dharmikgalla](https://github.com/Dharmikgalla) | Marketplace, product details, saved listings, and marketplace components |
+| Gade Banu Vardhan Reddy | 24BDS022 | [bhanug2007-prog](https://github.com/bhanug2007-prog) | Farmer dashboard, listing and auction management, and public farmer pages |
+| Basireddy Lokeshwara Reddy | 24BDS011 | [Loki6300](https://github.com/Loki6300) | Shared interface, navigation, authentication pages, settings, notifications, agreements, and messaging pages |
+
+Each member is responsible for understanding and explaining the code they submit, including code developed with AI assistance.
+
+---
+
+## Features and User Roles
+
+### Visitor
+
+- View the landing page and crop photography.
+- Browse produce categories and marketplace listings.
+- View product and farmer details.
+- Browse public auction information.
+- Read help, contact, privacy, and terms pages.
+
+### Farmer
+
+- View a farmer dashboard.
+- Create and manage produce listings.
+- Enter price, quantity, unit, location, and crop details.
+- Manage listing stock.
+- Create and manage auctions.
+- Communicate with buyers.
+- Respond to offers and counteroffers.
+- Track agreements.
+- Request account verification.
+
+### Buyer
+
+- View a buyer dashboard.
+- Search and filter marketplace listings.
+- View product and farmer details.
+- Save listings.
+- Communicate with farmers.
+- Submit offers and counteroffers.
+- Participate in auctions.
+- View bid history and agreements.
+
+### Administrator
+
+- Manage users and verification requests.
+- Moderate listings.
+- Review reports.
+- Manage categories.
+- Inspect auctions and agreements.
+- View audit records and operational errors.
+
+### UI and Interaction
+
+- Automatic hero slideshow with navigation and pause controls.
+- Scroll-triggered section reveals.
+- CSS perspective and hover effects.
+- Glass-style cards and interface panels.
+- Responsive layouts.
+- Form validation and submission feedback.
+- Reduced-motion support.
+
+These features are implemented in the source. Their presence does not mean that every interaction has passed runtime testing.
+
+---
+
+## Technology Stack
+
+| Area | Technology | Purpose |
+|---|---|---|
+| Frontend | React 19 and Next.js 16 | Components, routing, layouts, and pages |
+| Language | TypeScript | Typed application logic |
+| Styling | Tailwind CSS 4 and custom CSS | Responsive layouts, styling, and animation |
+| UI primitives | Radix UI | Interactive interface components |
+| Icons | Lucide React | Interface icons |
+| Forms | React Hook Form | Form state and input handling |
+| Validation | Zod | Input schemas and validation |
+| Authentication | Firebase Authentication | Accounts, sign-in, and role claims |
+| Database | Cloud Firestore | Persistent application records |
+| Server | Next.js API routes and Firebase Admin SDK | Trusted operations and data changes |
+| Optional server adapter | Firebase Cloud Functions | Alternative transport for shared server logic |
+| Local services | Firebase Emulator Suite | Local authentication, database, and storage |
+| Testing | Vitest and Playwright | Unit, integration, and browser tests |
+| Code checks | TypeScript and ESLint | Type checking and linting |
+
+---
+
+## Architecture
+
+```text
+React interface
+    |
+    +-- Firebase Authentication
+    |      Sign-in and ID tokens
+    |
+    +-- Firestore listeners
+    |      Public and permitted user records
+    |
+    +-- Authenticated requests to /api/rpc/<operation>
+           |
+           +-- Server authorization and validation
+           +-- Business rules
+           +-- Firestore transactions
+           +-- Stock and agreement updates
 ```
-Browser (Next.js App Router, React 19)
- ├─ reads public and own data straight from Firestore (real-time listeners), limited by Security Rules
- ├─ writes only harmless data directly: read markers, notification read state, saved items, bio
- └─ every trusted operation goes through call("<name>", data) with the user's Firebase ID token
-        createProduct · sendMessage · respondToOffer · placeBid · createAuction · admin* · …
-              │
-              ▼  free plan (default)                        Blaze plan (optional)
-   Next.js route /api/rpc/<name> on Vercel         callable Cloud Function <name>
-              └──────────────┬─────────────────────────────────┘
-                             ▼
-server/ (one implementation, Firebase Admin SDK)
- ├─ verify the ID token, load the caller, check role and account status
- ├─ validate input with the same Zod schemas as the UI (shared/)
- ├─ apply domain rules (shared/auction.ts, shared/offer.ts, shared/stock.ts)
- ├─ run Firestore transactions for anything touching stock, offers, bids, results or messages
- ├─ write the audit log in the same transaction
- └─ send notifications after the commit (best effort; failures go to opsErrors)
 
-Timers (start/finalise auctions, expire offers): runScheduledWork() in server/index.ts
- ├─ free plan: /api/cron/tick, called by cron-job.org with CRON_SECRET, plus a throttled
- │             background catch-up after normal API requests (at most once a minute)
- ├─ Blaze:     scheduled functions auctionScheduler (1 min) and expireOffers (5 min)
- └─ any plan:  the auction page requests finalisation as soon as the end time passes
+### Frontend
+
+The interface is organized into pages, reusable components, forms, and feature-specific components.
+
+### Server
+
+Trusted operations such as publishing listings, accepting offers, and placing bids go through server logic.
+
+### Shared Logic
+
+The `shared/` directory contains types, schemas, and helpers used by both frontend and server code.
+
+### Backend Transport
+
+The default backend uses Next.js API routes.
+
+The `functions/` directory provides an optional Cloud Functions adapter. The standard local setup below uses API routes and does not require the Functions emulator.
+
+---
+
+## Folder Structure
+
+```text
+Full-Stack-Development/
+├── public/
+│   └── images/              Photography and credits
+├── src/
+│   ├── app/
+│   │   ├── (site)/          Public pages
+│   │   ├── (auth)/          Authentication and onboarding
+│   │   ├── (dashboard)/     Farmer, buyer, and admin pages
+│   │   ├── api/             Server endpoints
+│   │   ├── layout.tsx       Root layout and providers
+│   │   └── globals.css      Shared styles and motion
+│   ├── components/
+│   │   ├── auth/
+│   │   ├── auctions/
+│   │   ├── chat/
+│   │   ├── dashboard/
+│   │   ├── forms/
+│   │   ├── landing/
+│   │   ├── layout/
+│   │   ├── marketplace/
+│   │   ├── offers/
+│   │   ├── products/
+│   │   └── ui/
+│   └── lib/                 Firebase, data access, hooks, and utilities
+├── server/                  Trusted business operations
+├── shared/                  Types, schemas, and domain helpers
+├── functions/               Optional Cloud Functions adapter
+├── scripts/                 Emulator, seed, and scheduler scripts
+├── tests/
+│   ├── unit/
+│   ├── emulator/
+│   ├── rules/
+│   └── e2e/
+├── firebase.json
+├── firestore.rules
+├── firestore.indexes.json
+├── storage.rules
+├── next.config.ts
+├── package.json
+└── README.md
 ```
 
-The key design choices:
+Next.js route-group folders such as `(site)` organize the source without adding their names to the URL.
 
-- **Money is integer paise** (₹2,150.00 is stored as `215000`). Quantities are whole numbers in the listing's unit.
-- **One rule implementation.** `shared/` holds the domain logic, which runs on the server and in the UI. The server is authoritative, and the UI uses the same code only to give early feedback.
-- **Idempotency through deterministic document IDs:**
-  - Bid IDs combine the auction, the buyer and a client idempotency key.
-  - Agreement IDs are `offer_<offerId>` or `auction_<auctionId>`.
-  - Allocation IDs are `alloc_offer_<id>` or `alloc_auction_<id>`.
-  - Notification IDs are built from the type, an event key and the recipient.
-- **The public auction document never holds buyer IDs.** The leader, the reserve price and the winner live in `auctions/{id}/private/state`, which only the farmer and administrators can read.
+---
 
-## 4. Technology stack
+## Local Setup
 
-| Area | Choice |
-|---|---|
-| Web | Next.js 16 (App Router, Turbopack, Cache Components), React 19, TypeScript (strict) |
-| UI | Tailwind CSS 4, shadcn-style components on Radix primitives, Lucide icons |
-| Forms | React Hook Form and Zod 4 (schemas shared with the server) |
-| Backend | Firebase Auth and Cloud Firestore (Spark), server code in `server/` run by Next.js API routes on Vercel (free) or by Cloud Functions v2 (Blaze), Vercel Blob or Cloud Storage for photos, App Check (optional) |
-| Tests | Vitest (unit, rules, emulator integration), @firebase/rules-unit-testing, Playwright |
-| Tooling | ESLint, Prettier, esbuild (functions bundle), tsx (scripts) |
+### Prerequisites
 
-## 5. Folder structure
+Install:
 
-```
-farmconnect/
-├─ src/
-│  ├─ app/
-│  │  ├─ (site)/        public pages: landing, marketplace, products/[id], farmers/[id], auctions, help, terms, privacy, contact
-│  │  ├─ (auth)/        login, register, forgot-password, auth/action, onboarding
-│  │  └─ (dashboard)/   farmer/*, buyer/*, admin/*, messages, agreements, notifications, settings
-│  ├─ components/       ui primitives, layout, auth, marketplace, products, chat, offers, auctions, admin, dashboard
-│  │  └─ api/           rpc/[name] (trusted operations), cron/tick (timers), uploads (photo upload tokens)
-│  └─ lib/              firebase client and call() wrapper, data hooks and queries, formatting, server clock, server auth
-├─ shared/              domain code used by the UI and the server: types, schemas, money, units, stock, offer, auction, agreement
-├─ server/              trusted server code: users, products, conversations, offers, auctions, agreements, reports, admin
-├─ functions/src/       Cloud Functions adapter for server/ (Blaze plan only)
-├─ scripts/             seed-emulator.ts, local-scheduler.ts, grant-admin.ts
-├─ tests/
-│  ├─ unit/             pure domain logic
-│  ├─ rules/            Firestore and Storage security rules
-│  ├─ emulator/         server operations end to end against the emulators (through the API route or Cloud Functions)
-│  └─ e2e/              Playwright scenarios
-├─ firestore.rules · storage.rules · firestore.indexes.json · firebase.json
-└─ .env.example · .env.development · vercel.json · DEPLOY-FREE.md
-```
-
-## 6. Prerequisites
-
+- Git.
 - Node.js 22 and npm.
-- Java 21 or newer, needed by the Firestore and Storage emulators.
-- The Firebase CLI. It is installed locally as a dev dependency, so `npx firebase` works.
-- For deployment: a Firebase project on the free **Spark** plan and a free Vercel account (see [DEPLOY-FREE.md](DEPLOY-FREE.md)). Blaze is optional.
+- Java 21 or newer for the project's emulator setup.
+- A browser.
 
-## 7. Installation
+Internet access is needed for the initial dependency installation and emulator downloads.
+
+Check the tools:
 
 ```bash
-npm install
-npm --prefix functions install   # only needed for the Cloud Functions (Blaze) path and its tests
+git --version
+node --version
+npm --version
+java -version
 ```
 
-## 8. Environment configuration
-
-| File | Purpose | Committed |
-|---|---|---|
-| `.env.development` | Points the app and its API routes at the emulators (`demo-farmconnect` project). Used by `npm run dev`. | yes (no secrets) |
-| `.env.example` | Template for a real project: public web config, backend and photo-storage mode, and the server-only secrets. Copy the values into Vercel's environment settings. | yes |
-| `functions/.env.example` | Cloud Functions settings, Blaze path only (`AUCTION_MIN_DURATION_MINUTES`, `ENFORCE_APP_CHECK`). | yes |
-| `functions/.env.local` | Emulator-only override for the functions emulator: 1-minute minimum auction duration. | yes |
-
-All `NEXT_PUBLIC_*` values are public. They identify the project and are safe to ship to browsers.
-
-Three values are **server-only secrets**. Set them in Vercel's project settings, never with a `NEXT_PUBLIC_` prefix, and never commit them:
-
-- `FIREBASE_SERVICE_ACCOUNT_KEY`: the Admin SDK key used by the API routes.
-- `CRON_SECRET`: protects `/api/cron/tick`.
-- `BLOB_READ_WRITE_TOKEN`: added by Vercel when you connect a Blob store.
-
-They are read only in `server/` and `src/app/api/`. They are never logged and never returned to a client.
-
-## 9. Firebase setup
-
-The free setup is described step by step in [DEPLOY-FREE.md](DEPLOY-FREE.md). In short:
-
-1. On the Spark plan, enable **Authentication** with the **Email/Password** provider.
-2. Create a **Cloud Firestore** database in production mode, in `asia-south1` (Mumbai).
-3. Register a **Web app** and copy its config into the `NEXT_PUBLIC_FIREBASE_*` variables.
-4. Deploy the rules and indexes: `npx firebase use --add`, then `npx firebase deploy --only firestore:rules,firestore:indexes`.
-5. Generate a service-account key (Project settings → Service accounts) for `FIREBASE_SERVICE_ACCOUNT_KEY`.
-6. Grant the first administrator with `scripts/grant-admin.ts`, then create categories at `/admin/categories`. `npm run seed` refuses to run against a real project on purpose.
-7. Optional: **App Check**. A free reCAPTCHA v3 key (`NEXT_PUBLIC_RECAPTCHA_V3_SITE_KEY`) or a reCAPTCHA Enterprise key works. Once tokens are arriving, set `ENFORCE_APP_CHECK=true` on the server.
-
-## 10. Authentication configuration
-
-- Email and password sign-in. A verification email is sent at registration and can be re-sent from Settings. In this version, verification is **not** required before trading.
-- After registration, the `completeRegistration` operation sets the `role` claim (`farmer` or `buyer`) and creates the profile and the private contact document. A role can only be set once. The `admin` role can only be granted with `scripts/grant-admin.ts`.
-- The client refreshes the ID token after onboarding so the new claim takes effect at once.
-- Password reset and email action links are handled at `/auth/action`. In Firebase Console → Authentication → Templates, set the action URL to `https://<your-domain>/auth/action`.
-- Add your production domain under Authentication → Settings → **Authorized domains**.
-- Suspended accounts can still sign in and read their own records, but every trusted operation (including sending chat messages) rejects their actions. The UI shows a banner.
-
-## 11. Firestore schema
-
-These are the main collections. Field-level types are in `shared/types.ts`.
-
-| Collection | Contents | Who can read |
-|---|---|---|
-| `users/{uid}` | display name, role, location, organisation, bio, verification and account status | farmer profiles: everyone. buyer profiles: self and admins |
-| `users/{uid}/private/contact` | email, phone, WhatsApp flag, notification preferences | self and admins (shared to counterparties through `getAgreementContacts`) |
-| `users/{uid}/savedProducts`, `savedFarmers` | bookmarks | self |
-| `categories/{id}` | name, examples, sort order, active | everyone |
-| `products/{id}` | listing, price (paise), unit, normalised price per quintal, stock buckets, search keywords, status, moderation status | active, paused and sold-out listings: everyone. drafts and removed: owner and admins |
-| `conversations/{id}` and `/messages/{id}` | participants, preview, unread counts, read markers, status; immutable messages | participants and admins |
-| `offers/{id}` | negotiation round: proposer, respondent, quantity, price, terms, expiry, status, links to the parent and superseding offer | buyer, farmer and admins |
-| `auctions/{id}` | public auction data; anonymous labels only | everyone (except drafts) |
-| `auctions/{id}/private/state` | reserve price, leader, highest amount, winner, allocation | farmer and admins |
-| `auctions/{id}/participants/{buyerId}` | anonymous label, own highest bid, `won` | that buyer, farmer and admins |
-| `auctions/{id}/publicBids/{bidId}` | anonymised history | everyone (sealed: only after the end) |
-| `bids/{id}` | immutable accepted bid with buyer id and idempotency key | that buyer, farmer and admins |
-| `stockAllocations/{id}` | reserved, committed, released or fulfilled quantity, with history | farmer and admins |
-| `agreements/{id}` | agreed terms, participants, status history, completion confirmations | the two parties and admins |
-| `notifications/{id}` | recipient, type, title, message, link, `readAt` | recipient |
-| `reports`, `verificationRequests` | user reports and verification requests | reporter or requester, and admins |
-| `auditLogs`, `opsErrors` | append-only audit trail, background failures | admins |
-
-## 12. Security rules
-
-`firestore.rules` and `storage.rules` deny by default. Clients may write only:
-
-- their own unread counter and read time on a conversation.
-- `readAt` on their own notifications.
-- their own saved listings and farmers (buyers only, strict shape).
-- `bio` and `profileImage` on their own profile.
-- product images under `products/{theirUid}/…` (farmers only; JPEG, PNG or WebP; under 5 MB). On Cloud Storage the Storage rules enforce this. On Vercel Blob, `/api/uploads` enforces the same limits before it issues a short-lived upload token.
-
-Everything else is written only by the server code through the Admin SDK: listings, stock, offers, auctions, bids, allocations, agreements, notifications, reports, categories, audit logs and **chat messages**.
-
-`sendMessage` checks that the sender is a participant, that the conversation is open and that the account is active. It writes the message, preview and unread counts in one transaction. The message ID is chosen by the client, so a retried send cannot duplicate a message.
-
-When a listing is saved, the server also checks that every image is in the farmer's own folder and that its URL points to that same file on Vercel Blob or Cloud Storage. `tests/rules/firestore.rules.test.ts` checks the rules, including Scenario C.
-
-## 13. Required indexes
-
-`firestore.indexes.json` lists every composite index used by the app's queries (37 composite indexes plus a collection-group override for `savedFarmers.farmerId`). Deploy them with:
+### 1. Clone the Repository
 
 ```bash
-npx firebase deploy --only firestore:indexes
+git clone https://github.com/SanjayTeja01/Full-Stack-Development.git
+cd Full-Stack-Development
+git switch main
 ```
 
-Indexes take a few minutes to build. Until they are ready, queries that need them fail with a "requires an index" error. The emulator does not enforce indexes, so check this after the first deploy.
-
-## 14. Server code and the two backends
-
-- All trusted logic is in `server/`. `callable(name, schema, handler)` registers an operation. It authenticates the caller from the verified ID token, then validates input with the shared Zod schema and maps errors to safe messages (`server/lib/callable.ts`).
-- **Free plan (default):** `src/app/api/rpc/[name]/route.ts` runs every operation on Vercel. It verifies `Authorization: Bearer <Firebase ID token>`, checking for revoked tokens, and optionally App Check. Errors come back as `{ error: { code, message, details } }` with a matching HTTP status. `src/app/api/cron/tick/route.ts` runs the timers when called with `CRON_SECRET`.
-- **Blaze (optional):** `functions/src/index.ts` exposes the same operations as callable Cloud Functions in `asia-south1`, plus the scheduled functions `auctionScheduler` (every minute) and `expireOffers` (every 5 minutes). Build with `npm run functions:build`, deploy with `npx firebase deploy --only functions`, and set `NEXT_PUBLIC_BACKEND_MODE=functions`.
-- Operations: `completeRegistration`, `updateProfile`, `requestVerification`, `getServerTime`, `createProduct`, `updateProduct`, `setProductStatus`, `updateStock`, `startConversation`, `setConversationState`, `sendMessage`, `createOffer`, `respondToOffer`, `createAuction`, `updateAuctionDraft`, `publishAuction`, `cancelAuction`, `placeBid`, `requestAuctionFinalization`, `updateAgreementStatus`, `getAgreementContacts`, `createReport`, and the admin operations `adminSetAccountStatus`, `adminReviewVerification`, `adminModerateProduct`, `adminResolveReport`, `adminUpsertCategory`, `adminResolveAgreement`, `adminResolveError`, `adminCancelAuction` and `adminGetAuctionBids`.
-
-## 15. Local development
+### 2. Install Dependencies
 
 ```bash
-# terminal 1: emulators (auth, firestore, storage, UI at http://127.0.0.1:4000)
-npm run emulators            # imports and exports .emulator-data between runs; use emulators:fresh for a clean start
+npm ci
+```
 
-# terminal 2: seed demo data (categories plus four demo accounts; no fake listings or activity)
+The Firebase CLI is included as a development dependency and can be invoked with `npx firebase`.
+
+### 3. Use the Local Emulator Configuration
+
+The committed `.env.development` points development mode at the local `demo-farmconnect` project.
+
+`emulators.env` contains the addresses used by the seed and scheduler scripts.
+
+No real Firebase service-account key is required for this local workflow.
+
+Do not replace `.env.development` with `.env.example`; the example describes configuration for a real Firebase project.
+
+### 4. Start the Emulators — Terminal 1
+
+From the repository root:
+
+```bash
+npm run emulators
+```
+
+Wait until the emulators report that they are ready. Keep this terminal open.
+
+### 5. Seed Categories and Demo Accounts — Terminal 2
+
+Open another terminal at the repository root:
+
+```bash
 npm run seed
+```
 
-# terminal 3: the web app and its API routes at http://localhost:3000
+The seed script creates crop categories and clearly labeled demo accounts.
+
+It does not create listings, bids, or completed trades. Create those through the application.
+
+### 6. Start the Website — Terminal 2
+
+```bash
 npm run dev
 ```
 
-**Demo accounts** (emulator only, password `farmconnect-demo`): `admin@example.com`, `farmer@example.com`, `buyer@example.com`, `buyer2@example.com`. They are clearly labelled "Demo" and exist only in the emulator.
+Open the address printed by Next.js, normally:
 
-The API routes reload automatically when you edit `server/` or `shared/`. To try the Cloud Functions path locally instead, run `npm run emulators:functions` and start the app with `NEXT_PUBLIC_BACKEND_MODE=functions`.
+```text
+http://localhost:3000
+```
 
-> If you work behind an HTTP proxy, unset `HTTPS_PROXY` and `HTTP_PROXY` for the emulator and dev-server processes.
+If that port is occupied, Next.js may use another port. Use the URL printed in the terminal.
 
-## 16. Emulator usage
+### 7. Start the Local Scheduler — Terminal 3
 
-- Emulator UI: http://127.0.0.1:4000. It lets you browse data, Auth users and Storage.
-- `.env.development` lowers the minimum auction duration to 1 minute for quick testing.
-- Timers run without any scheduler while you use the app: API requests trigger a background catch-up at most once a minute, and the auction page requests finalisation when the end time passes. With nobody using the app, `npm run scheduler:local` plays the role of the cron job.
-- `npm run seed` and `scripts/local-scheduler.ts` refuse to run unless the emulator environment variables are set.
+For auction and offer expiry demonstrations:
 
-## 17. Testing
+```bash
+npm run scheduler:local
+```
 
-| Command | What it runs | Needs |
-|---|---|---|
-| `npm run lint` / `npm run typecheck` | ESLint; TypeScript for the app, server and functions adapter | — |
-| `npm run test:unit` | 28 unit tests for money, units, stock buckets, offer and auction rules | — |
-| `npm run test:emulator` | Starts fresh emulators, then runs 45 tests: 16 for security rules and 29 integration tests through the Cloud Functions adapter | Java |
-| `npm run test:emulator:attach` | The same tests against emulators you already have running | running emulators (with functions) |
-| `npm run test:emulator:api` | The same 45 tests sent to the Next.js API route (the free-plan backend) | running emulators and `npm run dev` |
-| `npm run test:e2e` | 12 Playwright tests in the browser, using the API routes (starts `npm run dev` if needed) | running emulators with the `cereals` category (`npm run seed`) |
-| `npm test` | unit + emulator suites | Java |
+To process due work once:
 
-The required scenarios are covered as follows:
+```bash
+npm run scheduler:local -- --once
+```
 
-| Scenario | Where it is tested |
+### Local Service Addresses
+
+| Service | Address |
 |---|---|
-| A: list, discover, chat, offer, counter, accept, stock allocation | `tests/e2e/scenario-a.spec.ts` (browser), `tests/emulator/offers.test.ts` and `chat.test.ts` (server) |
-| B: auction, multiple bidders, live updates, end, result | `tests/e2e/scenario-b.spec.ts`, `tests/emulator/auctions.test.ts` |
-| C: another buyer's chat or direct auction manipulation is denied | `tests/rules/firestore.rules.test.ts` |
-| D: simultaneous bids stay consistent | `tests/emulator/auctions.test.ts` (same-amount race: exactly one accepted; increasing race: consistent highest) |
-| E: the same stock cannot go to an auction and an offer | `tests/emulator/offers.test.ts`, `tests/unit/stock.test.ts` |
-| F: an auction ends with nobody online and is still finalised | `tests/emulator/scheduler.test.ts` (runs the scheduler code directly) |
+| Website | URL printed by Next.js, normally `http://localhost:3000` |
+| Emulator UI | `http://127.0.0.1:4000` |
+| Authentication emulator | `127.0.0.1:9099` |
+| Firestore emulator | `127.0.0.1:8080` |
+| Storage emulator | `127.0.0.1:9199` |
 
-These also cover idempotent message and bid retries, image-link validation, finalisation run three times at once, reserve not met, no bids, sealed auctions, double offer acceptance, simultaneous acceptances that would oversell, offer expiry, suspension effects, listing removal, verification, and admin dispute resolution.
+### Data Persistence
 
-## 18. Deployment
+Application records remain available after browser refresh while the emulators are running.
 
-**Nothing has been deployed yet.** The free path (Firebase Spark plus Vercel Hobby, no card) is written up step by step in **[DEPLOY-FREE.md](DEPLOY-FREE.md)**:
+The emulator startup script imports a previous `.emulator-data` export when available and exports data on normal shutdown.
 
-1. Firebase: Email/Password auth and a Firestore database (`asia-south1`).
-2. `npx firebase deploy --only firestore:rules,firestore:indexes`.
-3. A service-account key.
-4. Vercel: `npx vercel link`, the environment variables, a Blob store, then `npx vercel deploy --prod`. No GitHub is needed.
-5. Add the Vercel domain to Firebase Auth's authorised domains, and set the email action URL.
-6. cron-job.org calling `/api/cron/tick` with `CRON_SECRET`.
-7. Grant the first administrator and create categories.
-8. Smoke test.
+Stop the emulator terminal using `Ctrl+C` and wait for export to finish. Avoid starting with `emulators:fresh` when you want to preserve an existing local dataset.
 
-The Blaze path, with Cloud Functions, scheduled functions and Cloud Storage, is still supported. See the end of DEPLOY-FREE.md.
+### Common Setup Issues
 
-## 19. Known limitations
+| Issue | What to check |
+|---|---|
+| Login or data requests fail | Confirm the emulators are running and the development environment is loaded. |
+| Categories are missing | Run `npm run seed` after emulator startup. |
+| Website opens on a different port | Use the address printed by Next.js. |
+| Auctions do not finalize during a demo | Start the local scheduler or run it once. |
+| Java error during emulator startup | Confirm Java is installed and available in the terminal. |
+| Browser tests target the wrong port | The Playwright setup uses port `3000` by default. |
 
-- **Search** uses Firestore only. Keyword search matches a single prefix of the product name. State, district, price, quantity, grade and harvest-date filters are applied to each page of results in the browser, after the server filters by status, category and keyword. That is fine for thousands of listings. For larger catalogues or full-text and fuzzy search, add Typesense or Algolia.
-- **Chat is text only.** Sending images or files in chat is not implemented.
-- **Notifications are in-app only.** There are no emails, SMS or push notifications.
-- **Phone numbers are not verified** (no OTP). Email verification is offered but not required.
-- **No automatic auction extensions.** The data model already has `originalEndsAt` and `extensionCount`, so anti-sniping can be added later.
-- **Timer granularity** depends on the cron interval (5 minutes recommended on the free plan). Results show immediately if anyone has the auction open, because the page requests finalisation, and any API request triggers a catch-up at most once a minute.
-- **Free-plan quotas:** Firestore Spark allows 50,000 reads and 20,000 writes per day. See DEPLOY-FREE.md for what uses them.
-- **Photos on Vercel Blob are not deleted** when removed from a listing. Unused files are harmless and cannot be attached to someone else's listing.
-- **Sealed auctions:** the farmer can see the current highest amount during the auction. Buyers cannot.
-- Finalisation reads all participants of an auction in one transaction. That is fine for hundreds of bidders, but very large auctions would need batching.
-- **Admin contact lookup:** administrators can read users' private contact documents. Those reads are not audited. Reveals to trade counterparties are audited.
-- **Suspension** blocks every action on the server, but it does not revoke existing sessions.
-- **Not deployed**, and no production data. Index builds, App Check, email templates, Vercel Blob uploads and the service-account setup have not been checked against real accounts. Vercel Blob uploads are the one piece the local tests cannot exercise, because they need a real Blob store.
+---
 
-## 20. Future enhancements
+## Demo Accounts
 
-- External search (Typesense or Algolia) with full-text search, typo tolerance and geo radius.
-- Email, SMS or WhatsApp notifications using the existing notification preferences.
-- Phone OTP verification and document upload for farmer verification.
-- Image sharing in chat.
-- Optional auction time extensions (anti-sniping), using the fields already in the model.
-- Ratings and reviews after completed agreements.
-- Market price references (for example, Agmarknet mandi prices) shown next to listings.
-- Optional logistics and payment partners. These are deliberately out of scope for this release.
-- Hindi and Telugu translations.
+These accounts are created by `npm run seed` in the local emulator environment.
 
-## 21. Business rules
+| Role | Email | Password |
+|---|---|---|
+| Farmer | `farmer@example.com` | `farmconnect-demo` |
+| Buyer | `buyer@example.com` | `farmconnect-demo` |
+| Second buyer | `buyer2@example.com` | `farmconnect-demo` |
+| Administrator | `admin@example.com` | `farmconnect-demo` |
 
-### Offers
+These credentials are for local demonstrations only. Do not use the shared password for real accounts.
 
-- Only buyers start negotiations, and only on an active listing, for no more than the quantity available at that moment.
-- A conversation has at most **one pending offer** at a time.
-- Expiry options are 6, 24, 48, 72 or 168 hours, or no expiry. An expired offer cannot be accepted. A scheduled job marks it `expired`, and acceptance also checks the expiry.
-- Only the **respondent** can accept, reject or counter. Only the **proposer** can withdraw.
-- A counteroffer marks the previous round `countered` (with `supersededBy`) and creates a new pending offer for the other party. There is a limit of 20 rounds.
-- **Acceptance** runs in one transaction. It re-checks the status, expiry and listing state, moves the quantity from `available` to `committed` (it fails if not enough is available), creates the allocation and the agreement, and posts a system message. Accepting again returns the same agreement.
-- Removing a listing cancels its pending offers.
+---
 
-### Auction timing
+## Demonstration Flow
 
-- Every time comes from the **server clock**. The browser shows a countdown adjusted to the server time, but it never decides when bidding is allowed.
-- The minimum duration is 15 minutes (configurable), the maximum is 14 days, and an auction can be scheduled up to 60 days ahead.
-- Phases: `draft` → `scheduled` (before the start) → `live` (from start to end) → `ended` or `cancelled`. Between the end time and finalisation, the UI shows "Closed, result pending", and the server refuses bids.
-- There are no automatic extensions in this version.
+Use two separate browser profiles or a normal and private window to keep farmer and buyer sessions separate.
 
-### Bid validation (server)
+1. Sign in as the demo farmer.
+2. Publish a listing with crop details, quantity, unit, location, and price.
+3. Sign in as the demo buyer in the other browser session.
+4. Find the listing in the marketplace.
+5. Open the product and start a conversation.
+6. Send a structured offer.
+7. As the farmer, accept the offer or submit a counteroffer.
+8. Accept the final offer and open the agreement.
+9. Refresh the agreement page to demonstrate persistence.
+10. Check the farmer's stock records to demonstrate the allocation change.
 
-A bid is accepted only if all of these hold:
+Rehearse this complete flow before evaluation. Test files describing a flow do not establish that the current version has passed it.
 
-1. The bidder is a buyer, the account is active, and it is not the bidder's own auction.
-2. The auction is live by server time.
-3. The amount is a whole number of paise.
-4. It is at least the minimum next bid, which is the starting price for the first bid, or the current highest bid plus the minimum increment. For example, with a highest bid of ₹2,150 and an increment of ₹50, the next bid must be at least ₹2,200. In sealed auctions, the minimum applies to the buyer's own previous bid.
-5. The current leader cannot outbid themselves (public auctions).
-6. The bid is at most 10× the starting price, which catches typing mistakes.
+---
 
-Bids are processed in a Firestore transaction on the auction document, so two simultaneous bids are applied one after the other. The second one is re-checked against the new highest bid. Each request carries an idempotency key, so a retry after a network error returns the original result instead of placing a second bid. Accepted bids are immutable.
+## Validation and Testing
 
-### Stock allocation
+### Recorded Validation
 
-- `available + reserved + committed + sold` is the stock of a listing. Only `available` can be offered, auctioned or edited by the farmer.
-- Publishing an auction moves its quantity from `available` to `reserved`.
-- Winning an auction moves `reserved` to `committed`. No winner, or cancellation, moves `reserved` back to `available`.
-- Accepting an offer moves `available` to `committed`.
-- An agreement marked completed (both parties confirm, or an admin decides) moves `committed` to `sold`. Marked not completed, it moves `committed` back to `available`.
-- Every change is recorded in `stockAllocations` (with history) and in `auditLogs`. A listing with reserved or committed stock cannot be removed, and its unit cannot be changed.
+| Check | Status |
+|---|---|
+| Source inventory at commit `502ac26` | 128 files present under `src/`; omitted supporting files restored |
+| Internal import inspection at that commit | 796 internal imports inspected with no missing target files found |
+| Unit tests on the original local working project | 28 tests passed |
+| TypeScript on the original local working project | Passed during local checks |
+| Production build of the merged GitHub version | Not yet recorded |
+| Complete runtime flow on the merged GitHub version | Not yet recorded |
+| GitHub Actions | No workflow configured at the time of repository inspection |
 
-### Cancellation
+The static import check only verifies that internal target files exist. It does not verify types, runtime behavior, or production build success.
 
-- A farmer can cancel an auction only **before the first bid**, and must give a reason.
-- After bidding starts, only an **administrator** can cancel it, with a reason that is shown to bidders and recorded in the audit log.
-- Cancellation releases the reserved stock and notifies the bidders.
-- Suspending a farmer pauses their active listings and cancels their auctions that have no bids. Auctions that already have bids are left for an administrator to decide.
+The local test results above apply to the original working project and must not be presented as fresh-clone validation of the merged repository.
 
-### Winner determination
+### Lint
 
-At or after the end time, finalisation (by the timer, a background catch-up or a viewer's request) runs once, in a transaction:
+```bash
+npm run lint
+```
 
-- **No bids** → `no_bids`, and the stock is released.
-- **Highest bid below the reserve** → `reserve_not_met`, and the stock is released.
-- Otherwise the **highest valid bid wins**. Since a bid must exceed the previous highest by at least the increment, ties cannot happen in public auctions. In sealed auctions, an equal amount does not displace the earlier bid, so the earliest highest bid wins.
-- With a winner, the reserved quantity is committed, an agreement is recorded at the winning price, a conversation between the farmer and the winner is opened, and both are notified.
-- A finalised auction is never changed again, so repeated or overlapping runs are safe.
+### Unit Tests
+
+```bash
+npm run test:unit
+```
+
+### Main Application Type Check
+
+```bash
+npx tsc --noEmit
+```
+
+### Production Build Check
+
+```bash
+npm run build
+```
+
+### Combined Application and Functions Type Check
+
+Install the Functions dependencies first:
+
+```bash
+npm --prefix functions ci
+npm run typecheck
+```
+
+### Browser Tests
+
+Start the emulators and run the seed script first. Then install Chromium and run the tests:
+
+```bash
+npx playwright install chromium
+npm run test:e2e
+```
+
+The Playwright configuration can start a development server at port `3000`. Ensure that the emulator suite is already running.
+
+### Emulator Integration Tests
+
+These tests require Functions dependencies and start their own emulator suite:
+
+```bash
+npm --prefix functions ci
+npm run test:emulator
+```
+
+Stop an existing emulator suite before this command to avoid port conflicts.
+
+---
+
+## Environment Configuration
+
+| File | Purpose |
+|---|---|
+| `.env.development` | Local development configuration using Firebase emulators |
+| `.env.example` | Configuration template for a real Firebase project |
+| `emulators.env` | Emulator addresses for seed and scheduler scripts |
+| `functions/.env.local` | Local Functions emulator settings |
+| `functions/.env.example` | Functions configuration template |
+
+The tracked development environment files contain local emulator settings. They must not be used to store real production credentials.
+
+Deployment requires configuring a real Firebase project, authorized domains, rules, indexes, server credentials, photo storage, and scheduling.
+
+The application has not been deployed or validated against a production Firebase project.
+
+---
+
+## Security and Data Handling
+
+- Firebase Authentication provides account identity.
+- Role claims distinguish farmer, buyer, and administrator access.
+- Firestore rules restrict direct client reads and writes.
+- Trusted operations perform server-side authorization and schema validation.
+- Stock and trade changes use server business rules and transactions.
+- Contact details are accessed through the agreement workflow according to the application's access rules.
+
+Do not commit:
+
+- Real Firebase service-account keys.
+- Private keys.
+- Passwords or production credentials.
+- `FIREBASE_SERVICE_ACCOUNT_KEY` values.
+- `CRON_SECRET` values.
+- `BLOB_READ_WRITE_TOKEN` values.
+- Dependency folders such as `node_modules`.
+- Generated build output such as `.next`.
+- Local emulator exports.
+
+`.gitignore` excludes common generated and private files, but it does not remove files already tracked by Git.
+
+---
+
+## Team Git Workflow
+
+The integration branch is `main`.
+
+The following contribution pull requests were merged:
+
+| Pull Request | Contribution |
+|---|---|
+| [PR #1](https://github.com/SanjayTeja01/Full-Stack-Development/pull/1) | Marketplace, product details, and saved listings |
+| [PR #2](https://github.com/SanjayTeja01/Full-Stack-Development/pull/2) | Farmer dashboard and management pages |
+| [PR #3](https://github.com/SanjayTeja01/Full-Stack-Development/pull/3) | Buyer dashboard and bidding interface |
+| [PR #4](https://github.com/SanjayTeja01/Full-Stack-Development/pull/4) | Shared interface and authentication pages |
+
+The initial foundation and missing-source correction were committed separately.
+
+For future contributions:
+
+1. Update local `main`.
+2. Create a feature branch.
+3. Make and explain the change.
+4. Stage the relevant files.
+5. Commit with a descriptive message.
+6. Push the branch.
+7. Open a pull request.
+8. Request another teammate's review.
+9. Address feedback and merge after approval.
+
+Review comments and validation claims should describe checks actually performed.
+
+---
+
+## Known Limitations
+
+- The merged repository still requires a recorded production build and complete browser-flow validation.
+- The demonstration environment depends on local emulators.
+- Emulator data is not automatically shared between teammates.
+- No online deployment is included.
+- Payment processing, escrow, inspection, and transport services are outside the project scope.
+- Search uses the current Firestore/query implementation rather than a dedicated full-text search engine.
+- Chat is text-based.
+- Notifications are in-app; SMS and push notifications are not implemented.
+- Phone ownership is not verified through OTP.
+- Email verification is available but is not required for trading in this version.
+- Auction finalization depends on server operations and scheduling.
+- The project includes more backend functionality than a minimal frontend-only coursework application.
+- Visual polish and implemented screens do not establish that all business flows have passed testing.
+
+---
+
+## Future Improvements
+
+- Add GitHub Actions for lint, type checking, unit tests, and builds.
+- Automate one complete browser trading flow.
+- Record fresh-clone setup and refresh-persistence test results.
+- Resolve defects found during integrated testing.
+- Validate a deployment with a real Firebase project.
+- Improve search and accessibility through user testing.
+- Refine dashboard interactions and responsive layouts.
+- Consider delivery coordination or payment integration only after defining the required business and security rules.
+
+---
+
+## Photography and Credits
+
+The landing page and crop categories use user-supplied photography and selected Unsplash photos.
+
+Optimized assets are served from `public/images/`. Sources and credits are documented in:
+
+[public/images/CREDITS.md](public/images/CREDITS.md)
+
+Editorial photographs represent crops and farm work. They are not photographs of an individual seller's listing.
+
+---
+
+**Repository:** [SanjayTeja01/Full-Stack-Development](https://github.com/SanjayTeja01/Full-Stack-Development)
