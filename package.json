@@ -1,0 +1,62 @@
+{
+  "name": "farmconnect",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit && npm --prefix functions run typecheck",
+    "format": "prettier --write .",
+    "functions:build": "npm --prefix functions run build",
+    "emulators": "node scripts/start-emulators.mjs",
+    "emulators:functions": "npm run functions:build && node scripts/start-emulators.mjs --with-functions",
+    "emulators:fresh": "node scripts/start-emulators.mjs --fresh",
+    "seed": "tsx --env-file=emulators.env scripts/seed-emulator.ts",
+    "scheduler:local": "tsx --env-file=emulators.env scripts/local-scheduler.ts",
+    "test": "npm run test:unit && npm run test:emulator",
+    "test:unit": "vitest run",
+    "test:emulator": "npm run functions:build && firebase emulators:exec --project demo-farmconnect --only auth,firestore,functions,storage \"vitest run --config vitest.emulator.config.mts\"",
+    "test:emulator:attach": "vitest run --config vitest.emulator.config.mts",
+    "test:emulator:api": "RPC_BASE_URL=http://localhost:3000 npm run test:emulator:attach",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "@hookform/resolvers": "^5.9.2",
+    "@vercel/blob": "^2.8.2",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "firebase": "^12.19.0",
+    "firebase-admin": "^14.5.0",
+    "lucide-react": "^1.61.0",
+    "next": "16.4.3",
+    "radix-ui": "^1.8.1",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "react-hook-form": "^7.91.0",
+    "tailwind-merge": "^3.7.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.2",
+    "@playwright/test": "^1.63.0",
+    "@tailwindcss/turbopack": "^4",
+    "@types/node": "^22.20.5",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "esbuild": "^0.28.2",
+    "eslint": "^9",
+    "eslint-config-next": "16.4.3",
+    "firebase-tools": "^15.34.1",
+    "prettier": "^3.9.10",
+    "tailwindcss": "^4",
+    "tsx": "^4.23.15",
+    "typescript": "^5",
+    "vitest": "^5.0.5"
+  },
+  "overrides": {
+    "@firebase/app": "0.16.4",
+    "@firebase/app-compat": "0.5.20"
+  }
+}

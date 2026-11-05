@@ -1,0 +1,182 @@
+rules_version = '2';
+
+// FarmConnect Firestore Security Rules
+//
+// Principle: clients may only write data that cannot affect money, stock, offers, auctions or other users.
+// All trusted state (products, stock, offers, auctions, bids, allocations, agreements, notifications,
+// reports, audit logs, chat messages) is written exclusively by the trusted server code (Next.js API routes on
+// the free plan, or Cloud Functions on Blaze) using the Admin SDK, which bypasses these rules.
+// The only client writes are: read markers, notification read state, saved items, and limited profile fields.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- helpers ----------
+    function signedIn() { return request.auth != null; }
+    function uid() { return request.auth.uid; }
+    function role() { return signedIn() && request.auth.token.role is string ? request.auth.token.role : ''; }
+    function isAdmin() { return role() == 'admin'; }
+    function isFarmer() { return role() == 'farmer'; }
+    function isBuyer() { return role() == 'buyer'; }
+    function profile(u) { return get(/databases/$(database)/documents/users/$(u)).data; }
+    function isActive() { return signedIn() && exists(/databases/$(database)/documents/users/$(uid())) && profile(uid()).accountStatus == 'active'; }
+    function onlyChanges(keys) { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys); }
+
+    // ---------- users ----------
+    // Farmer profiles are public (name, district/state, organisation, verification; no contact details).
+    // Buyer profiles are visible only to the buyer and administrators; farmers see a buyer's display name
+    // through the conversation, offer or agreement they share.
+    match /users/{userId} {
+      allow read: if resource.data.role == 'farmer' || (signedIn() && (uid() == userId || isAdmin()));
+      // Only cosmetic fields may be edited directly; role, status and verification are server-managed.
+      allow update: if signedIn() && uid() == userId
+        && onlyChanges(['bio', 'profileImage', 'updatedAt'])
+        && (!('bio' in request.resource.data) || request.resource.data.bio == null || (request.resource.data.bio is string && request.resource.data.bio.size() <= 500))
+        && request.resource.data.updatedAt == request.time;
+      allow create, delete: if false;
+
+      // Private contact details: owner and admins only. Shared with counterparties through a function.
+      match /private/{docId} {
+        allow read: if signedIn() && (uid() == userId || isAdmin());
+        allow write: if false;
+      }
+
+      // Bookmarks are personal and harmless, so the owner writes them directly.
+      match /savedProducts/{productId} {
+        allow read, delete: if signedIn() && uid() == userId;
+        allow create: if signedIn() && uid() == userId && isBuyer()
+          && request.resource.data.keys().hasOnly(['productId', 'productName', 'savedAt'])
+          && request.resource.data.productId == productId
+          && request.resource.data.productName is string && request.resource.data.productName.size() <= 120
+          && request.resource.data.savedAt == request.time;
+      }
+      match /savedFarmers/{farmerId} {
+        allow read, delete: if signedIn() && uid() == userId;
+        allow create: if signedIn() && uid() == userId && isBuyer()
+          && request.resource.data.keys().hasOnly(['farmerId', 'farmerName', 'savedAt'])
+          && request.resource.data.farmerId == farmerId
+          && request.resource.data.farmerName is string && request.resource.data.farmerName.size() <= 120
+          && request.resource.data.savedAt == request.time;
+      }
+    }
+
+    // ---------- categories ----------
+    match /categories/{categoryId} {
+      allow read: if true;
+      allow write: if false; // managed through the adminUpsertCategory function (audited)
+    }
+
+    // ---------- products ----------
+    match /products/{productId} {
+      allow read: if resource.data.listingStatus in ['active', 'paused', 'sold_out']
+        || (signedIn() && (resource.data.farmerId == uid() || isAdmin()));
+      allow write: if false; // createProduct / updateProduct / setProductStatus / updateStock
+    }
+
+    // ---------- conversations and messages ----------
+    match /conversations/{conversationId} {
+      function participant() { return signedIn() && uid() in resource.data.participantIds; }
+      allow read: if participant() || isAdmin();
+      allow create, delete: if false; // startConversation
+      // A participant may mark the conversation read: reset their own unread count and set their read time.
+      allow update: if participant()
+        && onlyChanges(['unreadCounts', 'lastReadAt'])
+        && request.resource.data.unreadCounts.diff(resource.data.unreadCounts).affectedKeys().hasOnly([uid()])
+        && request.resource.data.unreadCounts[uid()] == 0
+        && request.resource.data.lastReadAt.diff(resource.data.lastReadAt).affectedKeys().hasOnly([uid()])
+        && request.resource.data.lastReadAt[uid()] == request.time;
+
+      match /messages/{messageId} {
+        function convo() { return get(/databases/$(database)/documents/conversations/$(conversationId)).data; }
+        allow read: if signedIn() && (uid() in convo().participantIds || isAdmin());
+        // All messages are written by the server (sendMessage, offers, agreements, auctions), which checks
+        // participation, blocking and account status and updates previews and unread counts atomically.
+        allow create: if false;
+        allow update, delete: if false; // message history is immutable
+      }
+    }
+
+    // ---------- offers ----------
+    match /offers/{offerId} {
+      allow read: if signedIn() && (resource.data.buyerId == uid() || resource.data.farmerId == uid() || isAdmin());
+      allow write: if false; // createOffer / respondToOffer
+    }
+
+    // ---------- auctions ----------
+    match /auctions/{auctionId} {
+      // Public auction document contains no buyer identities.
+      allow read: if resource.data.status != 'draft' || (signedIn() && (resource.data.farmerId == uid() || isAdmin()));
+      allow write: if false;
+
+      function auction() { return get(/databases/$(database)/documents/auctions/$(auctionId)).data; }
+
+      // Leader, winner and reserve price: the farmer and administrators only.
+      match /private/{docId} {
+        allow read: if signedIn() && (auction().farmerId == uid() || isAdmin());
+        allow write: if false;
+      }
+      // Anonymous bid history. Hidden for sealed auctions until they end.
+      match /publicBids/{bidId} {
+        allow read: if auction().status != 'draft'
+          && (auction().bidVisibility == 'public_anonymous' || auction().status == 'ended'
+              || (signedIn() && (auction().farmerId == uid() || isAdmin())));
+        allow write: if false;
+      }
+      // Per-buyer participation record (anonymous label, own highest bid).
+      match /participants/{buyerId} {
+        allow read: if signedIn() && (uid() == buyerId || auction().farmerId == uid() || isAdmin());
+        allow write: if false;
+      }
+    }
+
+    // ---------- bids ----------
+    match /bids/{bidId} {
+      allow read: if signedIn() && (resource.data.buyerId == uid() || resource.data.farmerId == uid() || isAdmin());
+      allow write: if false; // placeBid only; accepted bids are immutable
+    }
+
+    // ---------- stock allocations ----------
+    match /stockAllocations/{allocationId} {
+      allow read: if signedIn() && (resource.data.farmerId == uid() || isAdmin());
+      allow write: if false;
+    }
+
+    // ---------- agreements ----------
+    match /agreements/{agreementId} {
+      allow read: if signedIn() && (uid() in resource.data.participantIds || isAdmin());
+      allow write: if false; // updateAgreementStatus
+    }
+
+    // ---------- notifications ----------
+    match /notifications/{notificationId} {
+      allow read: if signedIn() && resource.data.recipientId == uid();
+      allow update: if signedIn() && resource.data.recipientId == uid()
+        && onlyChanges(['readAt'])
+        && request.resource.data.readAt == request.time;
+      allow create, delete: if false;
+    }
+
+    // ---------- reports, verification, audit, ops ----------
+    match /reports/{reportId} {
+      allow read: if signedIn() && (resource.data.reporterId == uid() || isAdmin());
+      allow write: if false; // createReport / adminResolveReport
+    }
+    match /verificationRequests/{userId} {
+      allow read: if signedIn() && (uid() == userId || isAdmin());
+      allow write: if false;
+    }
+    match /auditLogs/{id} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+    match /opsErrors/{id} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    // Deny everything else.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

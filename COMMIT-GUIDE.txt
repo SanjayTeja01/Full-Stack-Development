@@ -1,0 +1,15 @@
+FarmConnect contribution bundle — SanjayTeja01
+
+Base project and landing page bundle. Sanjay should create/push the initial project commit from this bundle, then other members branch from main and add their own bundle.
+
+After copying the ZIP contents to the root of the cloned repository:
+  git switch main
+  git pull origin main
+  git switch -c feature/01-sanjay-landing
+  git status --short
+  git add <only your assigned paths>
+  git commit -m "feat: improve FarmConnect landing page and styling"
+  git push -u origin feature/01-sanjay-landing
+
+Open a pull request to main. A different teammate must review and approve it before merge.
+Do not commit .env secrets, node_modules, .next, or the ZIP file itself.
